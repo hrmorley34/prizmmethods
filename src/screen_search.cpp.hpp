@@ -189,25 +189,13 @@ class SearchScreen
 
     bool Search()
     {
-        // int key;
         search_pages = MAX_SEARCH_PAGES; // (make a guess - can be refined)
         selected_page = 0;
         selected_result = 0;
         for (int page = 0; page < MAX_SEARCH_PAGES + 1; page++)
             file_page_positions[page] = 0;
-        // PrintXY(1, 1, "  Ready to search", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // GetKey(&key);
         if (!mf->Search(search_text, &file_page_positions[0]))
-        {
-            // PrintXY(1, 2, "  Error in search", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
-            // do
-            // {
-            //     GetKey(&key);
-            // } while (key != KEY_CTRL_EXIT);
             return false;
-        }
-        // PrintXY(1, 2, "  Reading from search", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // GetKey(&key);
         if (ReadPageEntries())
             search_pages = 1;
         return true;
@@ -323,11 +311,13 @@ public:
         case KEY_CTRL_DEL:
             if (search_cursor > 0)
                 search_text[--search_cursor] = 0;
-            Search();
+            if (!Search())
+                return ScreenState::MethodReadError;
             break;
         case KEY_CTRL_AC:
             search_text[search_cursor = 0] = 0;
-            Search();
+            if (!Search())
+                return ScreenState::MethodReadError;
             break;
 
         case KEY_CTRL_UP:
@@ -379,7 +369,8 @@ public:
                     search_text[search_cursor++] = c;
                     search_text[search_cursor] = 0;
                 }
-                Search();
+                if (!Search())
+                    return ScreenState::MethodReadError;
             }
             break;
         }

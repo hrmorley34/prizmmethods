@@ -12,8 +12,6 @@
 #include <fstream>
 #endif
 
-// #include <fxcg/misc.h>
-
 inline uint8_t ReadU8(const uint8_t *&ptr)
 {
     return *ptr++;
@@ -169,19 +167,9 @@ namespace ringing
         if (pos != nullptr)
             *pos = start;
 
-        // Bdisp_AllClr_VRAM();
-        // char numbuf[6];
-        // itoa(start, (unsigned char *)numbuf);
-        // PrintCXY(1, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
-        // itoa(Size(), (unsigned char *)numbuf);
-        // PrintCXY(8 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
-
         uint8_t data_header[3];
         if (ReadFile(filehandle, data_header, sizeof(data_header), -1) != sizeof(data_header))
             return false;
-
-        // itoa(Tell(), (unsigned char *)numbuf);
-        // PrintCXY(8 * 18, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
 
         const uint8_t *data_header_ptr = data_header;
         uint16_t data_length = ReadU16(data_header_ptr);
@@ -214,33 +202,8 @@ namespace ringing
 
         Seek(start + sizeof(data_length) + data_length);
 
-        // itoa(start + sizeof(data_length) + data_length, (unsigned char *)numbuf);
-        // PrintCXY(15 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
-        // itoa(Tell(), (unsigned char *)numbuf);
-        // PrintCXY(15 * 18, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
-        // itoa(EndOfFile(), (unsigned char *)numbuf);
-        // PrintCXY(0 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
-        // int k;
-        // GetKey(&k);
-
         return true;
     }
-
-    // bool CompareTitlesLessThanWrapper(const char *text, const char *searchstr)
-    // {
-    //     PrintXY(1, 8, "  CompLt", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
-    //     bool b = CompareTitlesLessThan(text, searchstr);
-    //     PrintXY(1, 8, "  c     ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
-    //     return b;
-    // }
-
-    // bool ReadMethodSummaryWrapper(FileReader &self, int *const pos, int *const stage, char *const title)
-    // {
-    //     PrintXY(1, 8, "  Summary", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
-    //     bool b = self.ReadMethodSummary(pos, stage, title);
-    //     PrintXY(1, 8, "  s      ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
-    //     return b;
-    // }
 
     bool FileReader::Search(const char *const searchstring, int *const pos)
     {
@@ -272,18 +235,9 @@ namespace ringing
         int pointer_dest = ReadU32(pointer_raw_ptr);
         Seek(pointer_dest);
 
-        int key;
-        // PrintXY(1, 5, "  Seeked to pointer", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // GetKey(&key);
-
-        // int i = 0;
         char title[MAX_METHOD_TITLE_LENGTH];
-        // char title_temp[MAX_METHOD_TITLE_LENGTH + 2] = "  ";
-        // char *title = title_temp + 2;
         do
         {
-            // PrintXY(1, 6, "  Searching***", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-            // Bdisp_PutDisp_DD();
             if (EndOfFile())
             {
                 pointer_dest = Size();
@@ -291,27 +245,14 @@ namespace ringing
             }
             if (!ReadMethodSummary(&pointer_dest, nullptr, title))
             {
+#ifdef __sh__
+                int key;
                 PrintXY(1, 6, "  Failed read.", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
                 GetKey(&key);
+#endif
                 return false;
             }
-            // PrintXY(1, 6, "Searching...", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-            // Bdisp_PutDisp_DD();
-            // i++;
-            // if (i % 100 == 0)
-            // {
-            //     PrintXY(1, 5, "  Searching!!!", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
-            //     GetKey(&key);
-            // }
         } while (CompareTitlesLessThan(title, searchstring));
-
-        // PrintXY(1, 5, "  Found method", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // PrintXY(1, 6, title_temp, TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // char ss_copy[20] = "  < ";
-        // for (int i = 0; i < 15; i++)
-        //     ss_copy[i + 4] = searchstring[i];
-        // PrintXY(1, 7, ss_copy, TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
-        // GetKey(&key);
 
         Seek(pointer_dest);
         if (pos != nullptr)
