@@ -253,7 +253,11 @@ class SearchScreen
     }
 
 public:
-    SearchScreen() {}
+    void Initialise()
+    {
+        good_read = false;
+        new_stage_index = INITIAL_STAGE_INDEX;
+    }
 
     void Setup()
     {

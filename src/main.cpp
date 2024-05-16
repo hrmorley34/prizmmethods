@@ -30,6 +30,7 @@ int main(void)
     SetQuitHandler(QuitHandler);
 
     ss.SetFileReader(&mf);
+    ss.Initialise();
 
     // ms.CopyMethodFrom(PlainBob6);
     // ScreenState state = ScreenState::DrawMethod;
