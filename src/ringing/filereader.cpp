@@ -4,13 +4,15 @@
 
 #ifdef __sh__
 #include <fxcg/file.h>
+
+#include <fxcg/display.h>
+#include <fxcg/keyboard.h>
 #else
 #include <iostream>
 #include <fstream>
 #endif
 
-#include <fxcg/display.h>
-#include <fxcg/keyboard.h>
+// #include <fxcg/misc.h>
 
 inline uint8_t ReadU8(const uint8_t *&ptr)
 {
@@ -41,7 +43,7 @@ inline int ReadFile(ringing::compat::FileHandle HANDLE, uint8_t *buf, int size, 
 {
     if (readpos != -1)
         HANDLE->seekg(readpos);
-    return HANDLE->read((char *)buf, size);
+    return HANDLE->read((char *)buf, size).gcount();
 }
 #endif
 
@@ -167,18 +169,31 @@ namespace ringing
         if (pos != nullptr)
             *pos = start;
 
+        // Bdisp_AllClr_VRAM();
+        // char numbuf[6];
+        // itoa(start, (unsigned char *)numbuf);
+        // PrintCXY(1, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+        // itoa(Size(), (unsigned char *)numbuf);
+        // PrintCXY(8 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+
         uint8_t data_header[3];
         if (ReadFile(filehandle, data_header, sizeof(data_header), -1) != sizeof(data_header))
             return false;
+
+        // itoa(Tell(), (unsigned char *)numbuf);
+        // PrintCXY(8 * 18, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+
         const uint8_t *data_header_ptr = data_header;
         uint16_t data_length = ReadU16(data_header_ptr);
         if (data_length <= 0)
             return false;
         if (data_length >= 1024)
         {
+#ifdef __sh__
             PrintXY(1, 7, "  HUGE READ!", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
             int key;
             GetKey(&key);
+#endif
             return false;
         }
 
@@ -198,24 +213,34 @@ namespace ringing
         }
 
         Seek(start + sizeof(data_length) + data_length);
+
+        // itoa(start + sizeof(data_length) + data_length, (unsigned char *)numbuf);
+        // PrintCXY(15 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+        // itoa(Tell(), (unsigned char *)numbuf);
+        // PrintCXY(15 * 18, 5 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+        // itoa(EndOfFile(), (unsigned char *)numbuf);
+        // PrintCXY(0 * 18, 4 * 24, numbuf, TEXT_MODE_NORMAL, -1, COLOR_AQUA, COLOR_WHITE, 1, 0);
+        // int k;
+        // GetKey(&k);
+
         return true;
     }
 
-    bool CompareTitlesLessThanWrapper(const char *text, const char *searchstr)
-    {
-        PrintXY(1, 8, "  CompLt", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
-        bool b = CompareTitlesLessThan(text, searchstr);
-        PrintXY(1, 8, "  c     ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
-        return b;
-    }
+    // bool CompareTitlesLessThanWrapper(const char *text, const char *searchstr)
+    // {
+    //     PrintXY(1, 8, "  CompLt", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
+    //     bool b = CompareTitlesLessThan(text, searchstr);
+    //     PrintXY(1, 8, "  c     ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
+    //     return b;
+    // }
 
-    bool ReadMethodSummaryWrapper(FileReader &self, int *const pos, int *const stage, char *const title)
-    {
-        PrintXY(1, 8, "  Summary", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
-        bool b = self.ReadMethodSummary(pos, stage, title);
-        PrintXY(1, 8, "  s      ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
-        return b;
-    }
+    // bool ReadMethodSummaryWrapper(FileReader &self, int *const pos, int *const stage, char *const title)
+    // {
+    //     PrintXY(1, 8, "  Summary", TEXT_MODE_NORMAL, TEXT_COLOR_PURPLE);
+    //     bool b = self.ReadMethodSummary(pos, stage, title);
+    //     PrintXY(1, 8, "  s      ", TEXT_MODE_NORMAL, b ? TEXT_COLOR_GREEN : TEXT_COLOR_RED);
+    //     return b;
+    // }
 
     bool FileReader::Search(const char *const searchstring, int *const pos)
     {
@@ -260,8 +285,11 @@ namespace ringing
             // PrintXY(1, 6, "  Searching***", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
             // Bdisp_PutDisp_DD();
             if (EndOfFile())
-                return true;
-            if (!ReadMethodSummaryWrapper(*this, &pointer_dest, nullptr, title))
+            {
+                pointer_dest = Size();
+                break;
+            }
+            if (!ReadMethodSummary(&pointer_dest, nullptr, title))
             {
                 PrintXY(1, 6, "  Failed read.", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
                 GetKey(&key);
@@ -275,7 +303,7 @@ namespace ringing
             //     PrintXY(1, 5, "  Searching!!!", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
             //     GetKey(&key);
             // }
-        } while (CompareTitlesLessThanWrapper(title, searchstring));
+        } while (CompareTitlesLessThan(title, searchstring));
 
         // PrintXY(1, 5, "  Found method", TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
         // PrintXY(1, 6, title_temp, TEXT_MODE_NORMAL, TEXT_COLOR_GREEN);
@@ -298,5 +326,13 @@ namespace ringing
 #else
     int FileReader::Tell() { return filehandle->tellg(); }
     void FileReader::Seek(int pos) { filehandle->seekg(pos); }
+    int FileReader::Size()
+    {
+        int cpos = Tell();
+        filehandle->seekg(0, std::ios::end);
+        int size = Tell();
+        Seek(cpos);
+        return size;
+    }
 #endif
 }

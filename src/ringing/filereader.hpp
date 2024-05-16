@@ -50,7 +50,7 @@ namespace ringing
         int Tell();
         void Seek(int pos);
         int Size();
-        bool EndOfFile() { return Tell() == Size(); }
+        bool EndOfFile() { return Tell() >= Size(); }
     };
 }
 
