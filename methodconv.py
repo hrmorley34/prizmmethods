@@ -100,29 +100,26 @@ def normalise_title(title: str) -> str:
 
 
 NORMALISE_TITLE_CAT_CHARS = [
-    ("", " ", " " + string.punctuation),
-    ("0", "0", string.digits),
+    ("", False, " " + string.punctuation),
+    ("0", True, string.digits),
 ]
 NORMALISE_TITLE_SORT_CHARS = string.ascii_uppercase
 # \x7f is after all other characters
 NORMALISE_TITLE_SORT_AFTER = "\x7f"
 
 
-def normalise_title_sort(title: str) -> tuple[str, str]:
+def normalise_title_sort(title: str) -> str:
     title = normalise_title(title.upper()).upper()
-    normtitle: str = ""
-    trimtitle: str = ""
+    sorttitle: str = ""
     for c in title:
         for cat in NORMALISE_TITLE_CAT_CHARS:
             if c in cat[2]:
-                normtitle += cat[1]
-                trimtitle += c
+                sorttitle += c if cat[1] else cat[2][0]
                 break
         else:
             if c in NORMALISE_TITLE_SORT_CHARS:
-                normtitle += c
-                trimtitle += c
-    return normtitle, trimtitle
+                sorttitle += c
+    return sorttitle
 
 
 def get_title_cats(depth: int) -> Generator[str, None, None]:
@@ -173,11 +170,7 @@ class Method:
 
     @property
     def sort_title(self) -> str:
-        return normalise_title_sort(self.title)[0]
-
-    # @property
-    # def inter_sort_title(self) -> tuple[tuple[str, str], ...]:
-    #     return tuple(zip(*normalise_title_sort(self.title)))
+        return normalise_title_sort(self.title)
 
     def __lt__(self, m: "Method") -> bool:
         assert isinstance(m, Method)
@@ -515,13 +508,31 @@ DEFAULT_LIB = {
     "Double Oxford Bob Minor",
 }
 OUT_FILE = "methods/methods-{}.ccml"
-OUT_FILE_CHARS = (None, "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "E", "T")
+OUT_FILE_CHARS = (
+    None,
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "0",
+    "E",
+    "T",
+    "A",
+    "B",
+    "C",
+    "D",
+)
 
 if __name__ == "__main__":
     assert len(sys.argv) == 2, "Takes one argument: path to CCCBR_methods.xml.zip"
     FILENAME = sys.argv[1]
 
-    mfilter = StageFilter(4, 12)
+    mfilter = StageFilter(2, 16)
     # mfilter &= TitleFilter(DEFAULT_LIB)
     mit = read_methods_from_zip(FILENAME, mfilter)
     ms = group_and_sort_methods(mit)
@@ -533,7 +544,7 @@ if __name__ == "__main__":
         # (likely to be a lot more for some letters)
         float_pointerdepth = log(len(methods) / 10.0, len(NORMALISE_TITLE_SORT_CHARS))
         pointerdepth = max(int(float_pointerdepth), 0)
-        pointerdepth = min(pointerdepth, 1)
+        # pointerdepth = min(pointerdepth, 1)
         print(f"{stage}: Using depth {pointerdepth}")
 
         with open(out_file, "wb") as f:

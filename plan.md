@@ -2,9 +2,10 @@
 
 - Method selection / search
 - Method view
-    - Calls view?
+    - TODO: Calls view?
     - Press numbers to highlight/hide line
     - Arrows to scroll
+    - TODO: Save state (recent search and stage)
 
 
 ## Rendering

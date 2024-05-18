@@ -5,7 +5,7 @@
 
 namespace ringing
 {
-    const int MAX_BELLS = 12;
+    const int MAX_BELLS = 16;
 
     typedef uint16_t BellBitmask;
     static_assert(MAX_BELLS <= sizeof(BellBitmask) * 8, "MAX_BELLS must fit in BellBitmask");

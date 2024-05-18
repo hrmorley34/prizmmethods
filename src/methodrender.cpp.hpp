@@ -5,13 +5,14 @@
 
 namespace methodrender
 {
-    const char LineChars[ringing::MAX_BELLS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'E', 'T'};
+    const char LineChars[ringing::MAX_BELLS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'E', 'T', 'A', 'B', 'C', 'D'};
     unsigned short LineGlyphWidths[ringing::MAX_BELLS];
     void *LineGlyphs[ringing::MAX_BELLS];
     const color_t LineColours[ringing::MAX_BELLS] = {
         COLOR_RED, COLOR_BLUE, COLOR_LIME, COLOR_MAGENTA,
         COLOR_YELLOW, COLOR_CYAN, COLOR_GREEN, COLOR_DARKORANGE,
-        COLOR_PINK, COLOR_LIGHTBLUE, COLOR_PURPLE, COLOR_BROWN};
+        COLOR_PINK, COLOR_LIGHTBLUE, COLOR_PURPLE, COLOR_BROWN,
+        COLOR_DARKTURQUOISE, COLOR_GRAY, COLOR_MAROON, COLOR_DARKGRAY};
     const color_t DefaultTextColour = COLOR_BLACK;
 
     const int HuntThickness = 2;

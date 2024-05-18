@@ -41,7 +41,7 @@ class MethodScreen
             maxYOffset = minYOffset;
 
         methodXOffset = maxXOffset;
-        methodYOffset = maxYOffset;
+        methodYOffset = minYOffset;
     }
 
     void DrawTitle() const
