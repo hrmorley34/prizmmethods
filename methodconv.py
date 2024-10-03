@@ -18,8 +18,8 @@ MAX_METHOD_TITLE_LENGTH = 128
 MAX_PLACE_NOTATION_LENGTH = 256
 
 BELLS = "1234567890ETABCDFGHJKLMNPQRSUVWYZ"
-PN_CROSS = ("-", "X")
-PN_DOT = (".",)
+PN_CROSS = {"-", "X"}
+PN_DOT = {"."}
 assert len(BELLS) == 33
 
 
@@ -89,6 +89,9 @@ class Row:
         return [i for i in range(self.stage) if self.row[i] == i]
 
 
+UNICODE_CONVERSIONS = {"Ø": "O", "ø": "o"}
+
+
 def normalise_title(title: str) -> str:
     title = " ".join(title.strip().split())  # remove excess spacing
     norm = unicodedata.normalize("NFKD", title)
@@ -96,12 +99,22 @@ def normalise_title(title: str) -> str:
     for c in norm:
         if 0x20 <= ord(c) <= 0x7E:  # ASCII excluding control characters
             outtitle += c
+            continue
+        cc = UNICODE_CONVERSIONS.get(c)
+        if cc is not None:
+            outtitle += cc
+            continue
+        cat, _ = unicodedata.category(c)
+        if cat in "LNPS":  # letter, number, punctuation, symbol not covered above
+            print(f"WARNING: dropping character {c!r} in {norm!r}")
     return outtitle
 
 
-NORMALISE_TITLE_CAT_CHARS = [
-    ("", False, " " + string.punctuation),
-    ("0", True, string.digits),
+NORMALISE_TITLE_CAT_CHARS: list[tuple[str, str | None, str]] = [
+    # tuple: (comparison, replacement in normalise, replaced in normalise)
+    # empty allows for correct placement of short titles
+    ("", " ", " " + string.punctuation),
+    ("0", None, string.digits),
 ]
 NORMALISE_TITLE_SORT_CHARS = string.ascii_uppercase
 # \x7f is after all other characters
@@ -112,9 +125,9 @@ def normalise_title_sort(title: str) -> str:
     title = normalise_title(title.upper()).upper()
     sorttitle: str = ""
     for c in title:
-        for cat in NORMALISE_TITLE_CAT_CHARS:
-            if c in cat[2]:
-                sorttitle += c if cat[1] else cat[2][0]
+        for _, replace, chars in NORMALISE_TITLE_CAT_CHARS:
+            if c in chars:
+                sorttitle += c if replace is None else replace
                 break
         else:
             if c in NORMALISE_TITLE_SORT_CHARS:
@@ -126,8 +139,8 @@ def get_title_cats(depth: int) -> Generator[str, None, None]:
     if depth <= 0:
         yield ""
         return
-    for cat in NORMALISE_TITLE_CAT_CHARS:
-        yield cat[0]
+    for sortchar, _, _ in NORMALISE_TITLE_CAT_CHARS:
+        yield sortchar
     if depth == 1:
         yield from NORMALISE_TITLE_SORT_CHARS
         return
@@ -139,14 +152,15 @@ def get_title_cats(depth: int) -> Generator[str, None, None]:
 @dataclass(init=True, repr=True, order=False)
 class Method:
     stage: int
-    title: str
+    original_title: str
+    raw_title: bytes
+    sort_title: str
     pn: list[int]
     leadcount: int
     huntbells: int
 
     def dumps(self) -> bytes:
-        title = self.title.encode("ascii")
-        titlelength = len(title)
+        titlelength = len(self.raw_title)
         if titlelength + 1 > MAX_METHOD_TITLE_LENGTH:  # +1 for null terminator
             raise ValueError("Method title too long")
         leadlength = len(self.pn)
@@ -157,7 +171,7 @@ class Method:
 
         data = packer.pack(
             titlelength,
-            title + b"\0",
+            self.raw_title + b"\0",
             leadlength,
             *self.pn,
             self.leadcount,
@@ -167,10 +181,6 @@ class Method:
 
     def dump(self, f: IO[bytes]) -> int:
         return f.write(self.dumps())
-
-    @property
-    def sort_title(self) -> str:
-        return normalise_title_sort(self.title)
 
     def __lt__(self, m: "Method") -> bool:
         assert isinstance(m, Method)
@@ -296,7 +306,9 @@ def read_method(element: Any) -> Method:
 
     return Method(
         stage=stage,
-        title=normalise_title(title),
+        original_title=title,
+        raw_title=normalise_title(title).encode("ascii"),
+        sort_title=normalise_title_sort(title),
         pn=convert_pn(notation),
         leadcount=leadcount,
         huntbells=huntbells,
@@ -460,10 +472,11 @@ def read_methods_from_zip(
             yield from read_methods(f, filter)
 
 
-def group_and_sort_methods(it: Iterable[Method]) -> dict[int, list[Method]]:
+def group_and_sort_methods(*its: Iterable[Method]) -> dict[int, list[Method]]:
     d: defaultdict[int, list[Method]] = defaultdict(list)
-    for m in it:
-        bisect.insort(d[m.stage], m)
+    for it in its:
+        for m in it:
+            bisect.insort(d[m.stage], m)
     return dict(d)
 
 
