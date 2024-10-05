@@ -1,5 +1,5 @@
+#include "../charset/charset.hpp"
 #include "method.hpp"
-#include "search.hpp"
 #include "filereader.hpp"
 
 #ifdef __sh__
@@ -161,7 +161,7 @@ namespace ringing
         return true;
     }
 
-    bool FileReader::ReadMethodSummary(int *const pos, int *const stage, char *const title)
+    bool FileReader::ReadMethodSummary(int *const pos, int *const stage, charset::MBChar *const title)
     {
         int start = Tell();
         if (pos != nullptr)
@@ -204,27 +204,14 @@ namespace ringing
         return true;
     }
 
-    bool FileReader::Search(const char *const searchstring, int *const pos)
+    bool FileReader::Search(const charset::NonMBChar *const searchstring, int *const pos)
     {
         if (pointerdepth < 0)
             return false;
         if (searchstring == nullptr)
             return false;
 
-        int pointerindex = 0;
-        const char *sptr = searchstring;
-        for (int d = 0; d < pointerdepth; d++)
-        {
-            int transformed = TransformTitleFPointerChar(sptr);
-            if (transformed < 0)
-            {
-                pointerindex += TitleFPointerOffset + transformed;
-                break;
-            }
-            for (int md = d + 1; md < pointerdepth; md++)
-                transformed *= TitleFPointerChars;
-            pointerindex += TitleFPointerOffset + transformed;
-        }
+        int pointerindex = charset::GetSearchPointerIndex(searchstring, pointerdepth);
 
         uint8_t pointer_raw[4];
         const int pointer_pos = POINTERS_START + sizeof(pointer_raw) * pointerindex;
@@ -234,7 +221,7 @@ namespace ringing
         int pointer_dest = ReadU32(pointer_raw_ptr);
         Seek(pointer_dest);
 
-        char title[MAX_METHOD_TITLE_LENGTH];
+        charset::MBChar title[MAX_METHOD_TITLE_LENGTH];
         do
         {
             if (EndOfFile())
@@ -250,7 +237,7 @@ namespace ringing
 #endif
                 return false;
             }
-        } while (CompareTitlesLessThan(title, searchstring));
+        } while (charset::CompareSearch(searchstring, title) == charset::CompareResult::BeforeKey);
 
         Seek(pointer_dest);
         if (pos != nullptr)

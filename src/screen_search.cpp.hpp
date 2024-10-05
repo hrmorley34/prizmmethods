@@ -2,8 +2,8 @@
 #include <fxcg/keyboard.h>
 #include <fxcg/system.h>
 #include <string.h>
+#include "charset/charset.hpp"
 #include "ringing/method.hpp"
-#include "ringing/search.hpp"
 #include "ringing/filereader.hpp"
 #include "keyboardmode.hpp"
 #include "screenstate.hpp"
@@ -12,12 +12,14 @@
 
 struct SearchResult
 {
-    static const int MAX_DISPLAY_METHOD_TITLE_LENGTH = 22; // Display fits 21 characters, plus one overflow, excluding null
+    // Display fits 21 characters, plus one overflow, maybe all multi-byte, excluding null
+    static const int MAX_DISPLAY_METHOD_TITLE_CHARS = 21 + 1;
+    static const int MAX_DISPLAY_METHOD_TITLE_BYTES = MAX_DISPLAY_METHOD_TITLE_CHARS * 2;
 
     // position in the method file, or -1 for empty result
     int file_pos;
     // (cropped) title of the method
-    char title[MAX_DISPLAY_METHOD_TITLE_LENGTH + 1];
+    charset::MBChar title[MAX_DISPLAY_METHOD_TITLE_BYTES + 1];
 
     bool Exists() const { return file_pos >= 0; }
 };
@@ -25,7 +27,7 @@ struct SearchResult
 class SearchScreen
 {
     static const int MAX_SEARCH_LENGTH = 16;
-    char search_text[MAX_SEARCH_LENGTH + 1]; // +1 for null
+    charset::NonMBChar search_text[MAX_SEARCH_LENGTH + 1]; // +1 for null
     int search_cursor = 0;
     static const int MAX_SEARCH_RESULTS_PER_PAGE = 7;
     SearchResult results[MAX_SEARCH_RESULTS_PER_PAGE];
@@ -68,7 +70,7 @@ class SearchScreen
         hx += 2 * font_width;
         PrintCXY(hx, top, STAGE_HEADERS[cur_stage_index], TEXT_MODE_NORMAL, -1,
                  fg_header, bg_header, 1, 0);
-        hx += strlen(STAGE_HEADERS[cur_stage_index]) * font_width;
+        hx += MB_ElementCount((char *)STAGE_HEADERS[cur_stage_index]) * font_width;
         PrintCXY(hx, top, " >", TEXT_MODE_NORMAL, -1,
                  cur_stage_index == STAGES_COUNT - 1 ? fg_paleheaderarrow : fg_headerarrow, bg_header, 1, 0);
 
@@ -80,9 +82,9 @@ class SearchScreen
         }
 
         const int prefixlength = strlen(search_text);
-        char buf[SearchResult::MAX_DISPLAY_METHOD_TITLE_LENGTH] = {0};
-        const char *titleptr;
-        int i, x, y, trueprefixlength;
+        charset::MBChar buf[SearchResult::MAX_DISPLAY_METHOD_TITLE_BYTES + 1] = {0};
+        int x, y;
+        charset::CharCount trueprefixlength;
         y = top + font_height; // below header
         for (int result_index = 0; result_index < MAX_SEARCH_RESULTS_PER_PAGE; result_index++)
         {
@@ -98,34 +100,33 @@ class SearchScreen
                 }
                 break; // no more results
             }
-            titleptr = result.title;
 
             x = left;
             color_t bg = result_index == selected_result ? bg_selected : bg_default;
 
-            trueprefixlength = 0;
+            trueprefixlength = {0, 0};
             if (prefixlength > 0)
             {
-                i = 0;
-                while (i < prefixlength && *titleptr != 0)
-                {
-                    char c = *(titleptr++);
-                    buf[trueprefixlength++] = c;
-                    if (!ringing::SkipTitleChar(c))
-                        i++;
-                }
-                buf[trueprefixlength] = 0;
+                trueprefixlength =
+                    charset::CopyString(result.title, buf, prefixlength,
+                                        SearchResult::MAX_DISPLAY_METHOD_TITLE_BYTES, true);
+                --trueprefixlength; // ignore null
 
                 PrintCXY(x, y, buf, TEXT_MODE_NORMAL, -1, fg_search, bg, 1, 0);
-                for (int i = 0; i < trueprefixlength; i++)
-                    if (buf[i] == ' ') // make spaces in the search text more obvious
-                        PrintCXY(x + i * font_width, y, "_", TEXT_MODE_NORMAL, -1, fg_space, bg, 1, 0);
-                x += trueprefixlength * font_width;
+
+                for (charset::CharCount ic = {0, 0}; ic.bytes < trueprefixlength.bytes; ++ic)
+                {
+                    if (buf[ic.bytes] == ' ') // make spaces in the search text more obvious
+                        PrintCXY(x + ic.characters * font_width, y, "_", TEXT_MODE_NORMAL, -1, fg_space, bg, 1, 0);
+                    if (MB_IsLead(buf[ic.bytes]))
+                        ic.bytes++;
+                }
+                x += trueprefixlength.characters * font_width;
             }
 
-            for (i = 0; i < SearchResult::MAX_DISPLAY_METHOD_TITLE_LENGTH - trueprefixlength && *titleptr != 0; i++)
-                buf[i] = *(titleptr++);
-            buf[i] = 0; // null required here - skipped by the loop
+            charset::CopyString(result.title + trueprefixlength.bytes, buf,
+                                SearchResult::MAX_DISPLAY_METHOD_TITLE_CHARS - trueprefixlength.characters,
+                                SearchResult::MAX_DISPLAY_METHOD_TITLE_BYTES, true);
 
             PrintCXY(x, y, buf, TEXT_MODE_NORMAL, -1, fg_default, bg, 1, 0);
 
@@ -156,7 +157,7 @@ class SearchScreen
     {
         mf->Seek(file_page_positions[selected_page]);
         bool end_of_results = false;
-        char title[ringing::MAX_METHOD_TITLE_LENGTH];
+        charset::MBChar title[ringing::MAX_METHOD_TITLE_LENGTH];
         for (int i = 0; i < MAX_SEARCH_RESULTS_PER_PAGE; i++)
         {
             if (end_of_results)
@@ -167,18 +168,16 @@ class SearchScreen
 
             int pos;
             bool goodread = mf->ReadMethodSummary(&pos, nullptr, title);
-            if (!goodread || !ringing::CompareTitles(search_text, title))
+            if (!goodread || charset::CompareSearch(search_text, title) != charset::CompareResult::Contained)
             {
                 end_of_results = true;
                 results[i].file_pos = -1;
                 continue;
             }
             results[i].file_pos = pos;
-            // No need to check for null/end - length of method.title is longer than results.title
-            for (int j = 0; j < SearchResult::MAX_DISPLAY_METHOD_TITLE_LENGTH; j++)
-                results[i].title[j] = title[j];
-            // guarantee ending null, in case the string needs chopping
-            results[i].title[SearchResult::MAX_DISPLAY_METHOD_TITLE_LENGTH] = 0;
+            charset::CopyString(title, results[i].title,
+                                SearchResult::MAX_DISPLAY_METHOD_TITLE_CHARS,
+                                SearchResult::MAX_DISPLAY_METHOD_TITLE_BYTES, true);
 
             if (mf->EndOfFile())
                 end_of_results = true;
@@ -278,7 +277,7 @@ public:
     }
 
 private:
-    static bool KeyToChar(const int key, char *const c)
+    static bool KeyToChar(const int key, charset::NonMBChar *const c)
     {
         if ((key == ' ') || ('0' <= key && key <= '9') || ('A' <= key && key <= 'Z') || ('a' <= key && key <= 'z'))
         {
@@ -362,7 +361,7 @@ public:
 
         default:
         {
-            char c;
+            charset::NonMBChar c;
             if (KeyToChar(key, &c))
             {
                 if (search_cursor < MAX_SEARCH_LENGTH)

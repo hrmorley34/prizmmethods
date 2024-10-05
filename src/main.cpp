@@ -4,9 +4,9 @@
 #include "screen_method.cpp.hpp"
 #include "screen_search.cpp.hpp"
 
+#include "charset/charset.cpp"
 #include "ringing/method.cpp"
 #include "ringing/row.cpp"
-#include "ringing/search.cpp"
 #include "ringing/filereader.cpp"
 #include "vram.cpp.hpp"
 #include "test_methods.hpp"

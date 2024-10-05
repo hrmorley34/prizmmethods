@@ -1,5 +1,5 @@
+#include "../charset/charset.hpp"
 #include "method.hpp"
-#include "search.hpp"
 
 #ifdef __sh__
 #else
@@ -43,9 +43,9 @@ namespace ringing
         bool ReadHeader();
 
         bool ReadMethod(Method &method);
-        bool ReadMethodSummary(int *pos, int *stage, char *title);
+        bool ReadMethodSummary(int *pos, int *stage, charset::MBChar *title);
 
-        bool Search(const char *searchstring, int *pos);
+        bool Search(const charset::NonMBChar *searchstring, int *pos);
 
         int Tell();
         void Seek(int pos);

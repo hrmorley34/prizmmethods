@@ -1,11 +1,12 @@
 #include <fxcg/display.h>
+#include "charset/charset.hpp"
 #include "ringing/row.hpp"
 #include "ringing/method.hpp"
 #include "vram.hpp"
 
 namespace methodrender
 {
-    const char LineChars[ringing::MAX_BELLS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'E', 'T', 'A', 'B', 'C', 'D'};
+    const charset::NonMBChar LineChars[ringing::MAX_BELLS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'E', 'T', 'A', 'B', 'C', 'D'};
     unsigned short LineGlyphWidths[ringing::MAX_BELLS];
     void *LineGlyphs[ringing::MAX_BELLS];
     const color_t LineColours[ringing::MAX_BELLS] = {

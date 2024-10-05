@@ -24,6 +24,7 @@ BUILD		:=	build
 SOURCES		:=	src
 DATA		:=	data  
 INCLUDES	:=
+GENERATED	:=	src/charset/gen.hpp
 
 #---------------------------------------------------------------------------------
 # options for code and add-in generation
@@ -105,11 +106,14 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 .PHONY: all clean
 
 #---------------------------------------------------------------------------------
-all: $(BUILD)
+all: $(BUILD) $(GENERATED)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 $(BUILD):
 	@mkdir $@
+
+src/charset/gen.hpp: prizmunicode/charmap.py prizmunicode/searchmap.py prizmunicode/genhpp.py
+	py -m prizmunicode.genhpp create_hpp src/charset/gen.hpp
 
 #---------------------------------------------------------------------------------
 export CYGWIN := nodosfilewarning

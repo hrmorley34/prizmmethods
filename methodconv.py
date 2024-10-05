@@ -1,6 +1,5 @@
 import bisect
 import re
-import string
 import struct
 import sys
 import unicodedata
@@ -13,6 +12,9 @@ from math import log
 from typing import IO, Any, Callable, Generator, Iterable
 
 import lxml.etree
+
+from prizmunicode.charmap import try_map_string
+from prizmunicode.searchmap import get_title_cats, try_map_searchstring
 
 MAX_METHOD_TITLE_LENGTH = 128
 MAX_PLACE_NOTATION_LENGTH = 256
@@ -89,66 +91,6 @@ class Row:
         return [i for i in range(self.stage) if self.row[i] == i]
 
 
-UNICODE_CONVERSIONS = {"Ø": "O", "ø": "o"}
-
-
-def normalise_title(title: str) -> str:
-    title = " ".join(title.strip().split())  # remove excess spacing
-    norm = unicodedata.normalize("NFKD", title)
-    outtitle = ""
-    for c in norm:
-        if 0x20 <= ord(c) <= 0x7E:  # ASCII excluding control characters
-            outtitle += c
-            continue
-        cc = UNICODE_CONVERSIONS.get(c)
-        if cc is not None:
-            outtitle += cc
-            continue
-        cat, _ = unicodedata.category(c)
-        if cat in "LNPS":  # letter, number, punctuation, symbol not covered above
-            print(f"WARNING: dropping character {c!r} in {norm!r}")
-    return outtitle
-
-
-NORMALISE_TITLE_CAT_CHARS: list[tuple[str, str | None, str]] = [
-    # tuple: (comparison, replacement in normalise, replaced in normalise)
-    # empty allows for correct placement of short titles
-    ("", " ", " " + string.punctuation),
-    ("0", None, string.digits),
-]
-NORMALISE_TITLE_SORT_CHARS = string.ascii_uppercase
-# \x7f is after all other characters
-NORMALISE_TITLE_SORT_AFTER = "\x7f"
-
-
-def normalise_title_sort(title: str) -> str:
-    title = normalise_title(title.upper()).upper()
-    sorttitle: str = ""
-    for c in title:
-        for _, replace, chars in NORMALISE_TITLE_CAT_CHARS:
-            if c in chars:
-                sorttitle += c if replace is None else replace
-                break
-        else:
-            if c in NORMALISE_TITLE_SORT_CHARS:
-                sorttitle += c
-    return sorttitle
-
-
-def get_title_cats(depth: int) -> Generator[str, None, None]:
-    if depth <= 0:
-        yield ""
-        return
-    for sortchar, _, _ in NORMALISE_TITLE_CAT_CHARS:
-        yield sortchar
-    if depth == 1:
-        yield from NORMALISE_TITLE_SORT_CHARS
-        return
-    for c in NORMALISE_TITLE_SORT_CHARS:
-        for suffix in get_title_cats(depth - 1):
-            yield c + suffix
-
-
 @dataclass(init=True, repr=True, order=False)
 class Method:
     stage: int
@@ -202,7 +144,7 @@ class MethodFile:
     def __init__(self, stage: int, pointerdepth: int) -> None:
         self.stage = stage
         self.pointerdepth = pointerdepth
-        i1, i2 = len(NORMALISE_TITLE_CAT_CHARS), len(NORMALISE_TITLE_SORT_CHARS)
+        i1, i2 = 2, 26  # TODO: Not hardcode
         # calculate i1+i2*(...*(i1+i2))
         pointercount = i1 * (1 - i2**pointerdepth) // (1 - i2) + i2**pointerdepth
         self.pointers = [0] * pointercount
@@ -230,9 +172,8 @@ class MethodFile:
         return f.write(self.pointers_dumps())
 
     def get_title_sort_checks(self) -> Generator[tuple[int, str], None, None]:
-        counter = count()
-        yield from zip(counter, get_title_cats(self.pointerdepth))
-        yield (len(self.pointers), NORMALISE_TITLE_SORT_AFTER)
+        yield from enumerate(get_title_cats(self.pointerdepth))
+        yield (len(self.pointers), "\U0010ffff")
 
     def dump_methods(self, f: IO[bytes], sorted_methods: list[Method]) -> int:
         assert f.seek(self.after_pointers()) == self.after_pointers()
@@ -304,11 +245,15 @@ def read_method(element: Any) -> Method:
     for bell in huntbell_positions:
         huntbells |= 1 << bell
 
+    raw_title = try_map_string(title)
+    assert raw_title is not None
+    search_title = try_map_searchstring(title)
+    assert search_title is not None
     return Method(
         stage=stage,
         original_title=title,
-        raw_title=normalise_title(title).encode("ascii"),
-        sort_title=normalise_title_sort(title),
+        raw_title=raw_title,
+        sort_title=search_title.sortkey,
         pn=convert_pn(notation),
         leadcount=leadcount,
         huntbells=huntbells,
@@ -555,7 +500,7 @@ if __name__ == "__main__":
 
         # aim for an average of 10 methods per bucket
         # (likely to be a lot more for some letters)
-        float_pointerdepth = log(len(methods) / 10.0, len(NORMALISE_TITLE_SORT_CHARS))
+        float_pointerdepth = log(len(methods) / 10.0, 2 + 26)  # TODO: remove hardcode
         pointerdepth = max(int(float_pointerdepth), 0)
         # pointerdepth = min(pointerdepth, 1)
         print(f"{stage}: Using depth {pointerdepth}")
