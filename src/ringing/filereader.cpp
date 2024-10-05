@@ -6,7 +6,7 @@
 #include <fxcg/file.h>
 
 #include <fxcg/display.h>
-#include <fxcg/keyboard.h>
+#include "../utils.hpp"
 #else
 #include <iostream>
 #include <fstream>
@@ -179,8 +179,7 @@ namespace ringing
         {
 #ifdef __sh__
             PrintXY(1, 7, "  HUGE READ!", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
-            int key;
-            GetKey(&key);
+            DebugFreeze();
 #endif
             return false;
         }
@@ -246,9 +245,8 @@ namespace ringing
             if (!ReadMethodSummary(&pointer_dest, nullptr, title))
             {
 #ifdef __sh__
-                int key;
                 PrintXY(1, 6, "  Failed read.", TEXT_MODE_NORMAL, TEXT_COLOR_RED);
-                GetKey(&key);
+                DebugFreeze();
 #endif
                 return false;
             }
