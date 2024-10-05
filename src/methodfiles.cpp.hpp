@@ -1,4 +1,5 @@
 #include <fxcg/file.h>
+#include "charset/charset.hpp"
 #include "ringing/row.hpp"
 #include "ringing/filereader.hpp"
 
@@ -33,7 +34,7 @@ bool LoadMethodFile(ringing::FileReader &mf, int stage)
 // The stages for which we expect there to be files.
 const int STAGES_COUNT = 15;
 const int STAGES[STAGES_COUNT] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-const char *STAGE_HEADERS[STAGES_COUNT] = {
+const charset::MBChar *STAGE_HEADERS[STAGES_COUNT] = {
     "Two", "Singles", "Minimus", "Doubles", "Minor", "Triples",
     "Major", "Caters", "Royal", "Cinques", "Maximus", "Sextuples",
     "Fourteen", "Septuples", "Sixteen"};
