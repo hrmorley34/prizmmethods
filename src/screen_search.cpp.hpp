@@ -311,13 +311,13 @@ public:
         case KEY_CTRL_DEL:
             if (search_cursor > 0)
                 search_text[--search_cursor] = 0;
-            if (!Search())
-                return ScreenState::MethodReadError;
-            break;
+            goto research;
         case KEY_CTRL_AC:
             search_text[search_cursor = 0] = 0;
+        research:
             if (!Search())
                 return ScreenState::MethodReadError;
+            SetInputMode(KEYBOARD_MODE_ALPHA_LOCK);
             break;
 
         case KEY_CTRL_UP:
@@ -354,6 +354,7 @@ public:
             // Don't allow selecting non-existant results
             while (selected_result > 0 && !results[selected_result].Exists())
                 selected_result--;
+            SetInputMode(KEYBOARD_MODE_ALPHA_LOCK); // fix after SHIFT+UP/DOWN
             break;
 
         case KEY_CTRL_EXE:
@@ -375,10 +376,6 @@ public:
             break;
         }
         }
-
-        // // Make typing letters easier
-        // if (GetInputMode() == 0)
-        //     SetInputMode(KEYBOARD_MODE_ALPHA_LOCK);
 
         return ScreenState::Search;
     }
