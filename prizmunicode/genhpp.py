@@ -1,7 +1,14 @@
 from collections import defaultdict
 
 from .charmap import BYTE_MAP
-from .searchmap import SORT_BYTE_MAP
+from .searchmap import (
+    JUMP_RECURSECOUNT,
+    JUMP_SPACE,
+    JUMP_STOPCOUNT,
+    JUMPCHARS,
+    SORT_ASCII_PTR_MAP,
+    SORT_BYTE_MAP,
+)
 
 __all__ = [
     "create_cpp_searchconvert",
@@ -21,13 +28,13 @@ def get_c_char(i: int, allow_ascii: bool = False):
 
 CPP_DEFAULT_CHAR = " "
 CPP_DEFAULT_C_CHAR = get_c_char(ord(CPP_DEFAULT_CHAR), True)
+CPP_SEARCH_DEFAULT = JUMPCHARS.index(JUMP_SPACE)
 
-# TODO: Group same return values together for compiler
-CPP_TOP = """\
-char {fname}(const char *&c)
+CPP_SWITCHED_TOP = """\
+{ret} {fname}(const MBChar *&c)
 {{
     if (*c == '\\0')
-        return '\\0';
+        return {null};
     switch (*c++)
     {{"""
 CPP_CASE_LINE = """\
@@ -42,13 +49,13 @@ CPP_NESTED_CASE_LINE = """\
                 case {src}:"""
 CPP_NESTED_CASE_RETURN = """\
                     return {dest};"""
-CPP_NESTED_BOTTOM = f"""\
+CPP_NESTED_BOTTOM = """\
                 default:
-                    return {CPP_DEFAULT_C_CHAR};
+                    return {default};
             }}"""
-CPP_BOTTOM = f"""\
+CPP_SWITCHED_BOTTOM = """\
         default:
-            return {CPP_DEFAULT_C_CHAR};
+            return {default};
     }}
 }}
 """
@@ -63,7 +70,9 @@ def create_cpp_searchconvert(fname: str) -> str:
         else:
             returnvals[c1].add(i1)
 
-    elements: list[str] = [CPP_TOP.format(fname=fname)]
+    elements: list[str] = [
+        CPP_SWITCHED_TOP.format(fname=fname, ret="NonMBChar", null="'\\0'")
+    ]
     for c in sorted(returnvals):
         iset = returnvals[c]
         if not iset:
@@ -93,14 +102,36 @@ def create_cpp_searchconvert(fname: str) -> str:
             elements.append(
                 CPP_NESTED_CASE_RETURN.format(dest=get_c_char(ord(c), True))
             )
-        elements.append(CPP_NESTED_BOTTOM)
+        elements.append(CPP_NESTED_BOTTOM.format(default=CPP_DEFAULT_C_CHAR))
 
-    elements.append(CPP_BOTTOM)
+    elements.append(CPP_SWITCHED_BOTTOM.format(default=CPP_DEFAULT_C_CHAR))
+    return "\n".join(elements)
+
+
+def create_cpp_searchptrconvert(fname: str) -> str:
+    returnvals: defaultdict[int, set[int]] = defaultdict(set)
+    for i1, c1 in SORT_ASCII_PTR_MAP.items():
+        returnvals[c1].add(i1)
+
+    elements: list[str] = [
+        CPP_SWITCHED_TOP.format(fname=fname, ret="SearchIndex", null="-1")
+    ]
+    for c in sorted(returnvals):
+        iset = returnvals[c]
+        if not iset:
+            continue
+        if c == CPP_SEARCH_DEFAULT:  # covered by default case
+            continue
+        for i in sorted(iset):
+            elements.append(CPP_CASE_LINE.format(src=get_c_char(i, True)))
+        elements.append(CPP_CASE_RETURN.format(dest=c))
+
+    elements.append(CPP_SWITCHED_BOTTOM.format(default=CPP_SEARCH_DEFAULT))
     return "\n".join(elements)
 
 
 CPP_MB_TOP = """\
-bool {fname}(const char c)
+bool {fname}(const MBChar c)
 {{
     switch (c)
     {{"""
@@ -125,6 +156,45 @@ def create_cpp_mbstartcheck(fname: str) -> str:
     return "\n".join(elements)
 
 
+def create_cpp_jumpcharcount(cname: str) -> str:
+    return f"""\
+const int {cname} = {len(JUMPCHARS)};
+"""
+
+
+def create_cpp_jumplayersize(fname: str) -> str:
+    return f"""\
+int {fname}(const int depth)
+{{
+    const int jump_stopcount = {JUMP_STOPCOUNT};
+    const int jump_recursecount = {JUMP_RECURSECOUNT};
+
+    int rd = 1;
+    for (int i = 0; i < depth; i++)
+        rd *= jump_recursecount;
+    return jump_stopcount * (1 - rd) / (1 - jump_recursecount) + rd;
+}}
+"""
+
+
+def create_cpp_isjumpstop(fname: str) -> str:
+    indexes = [i for i, j in enumerate(JUMPCHARS) if not j.stop]
+    cases = "\n".join(CPP_CASE_LINE.format(src=i) for i in indexes)
+    if cases:
+        cases += "\n" + CPP_CASE_RETURN.format(dest="false")
+    return f"""\
+bool {fname}(const SearchIndex i)
+{{
+    switch (i)
+    {{
+{cases}
+        default:
+            return true;
+    }}
+}}
+"""
+
+
 def main(argv: list[str]) -> None:
     if len(argv) == 3 and argv[1] == "create_hpp":
         with open(argv[2], "w") as f:
@@ -132,8 +202,12 @@ def main(argv: list[str]) -> None:
                 "\n".join(
                     [
                         create_cpp_searchconvert("ReadSearchChar"),
+                        create_cpp_searchptrconvert("ReadSearchCharPtr"),
                         # not required - syscall MB_IsLead has same function
                         # create_cpp_mbstartcheck(...),
+                        create_cpp_jumpcharcount("jumpCharCount"),
+                        create_cpp_jumplayersize("GetJumpDepth"),
+                        create_cpp_isjumpstop("IsSearchStop"),
                     ]
                 )
             )

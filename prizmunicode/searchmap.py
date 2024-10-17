@@ -22,6 +22,7 @@ __all__ = [
     "try_map_searchstring",
     "get_title_cats",
     "SORT_BYTE_MAP",
+    "SORT_ASCII_PTR_MAP",
 ]
 
 
@@ -155,6 +156,7 @@ def get_title_cats(depth: int) -> Generator[str, None, None]:
 
 
 SORT_BYTE_MAP: dict[int, str | dict[int, str]] = {}
+SORT_ASCII_PTR_MAP: dict[int, int] = {}
 for i1, c1 in BYTE_MAP.items():
     if isinstance(c1, dict):
         sub_byte_map: dict[int, str] = {}
@@ -171,3 +173,7 @@ for i1, c1 in BYTE_MAP.items():
         c = try_map_searchchar(c1, verbose=False)
         if c is not None:
             SORT_BYTE_MAP[i1] = c.sortkey
+        if 0x20 <= i1 < 0x7F:
+            s = try_map_searchchar_index(c1, verbose=False)
+            if s is not None:
+                SORT_ASCII_PTR_MAP[i1] = s

@@ -34,45 +34,27 @@ namespace charset
         return count;
     }
 
-    const int TitleFPointerOffset = 2;
-    const int TitleFPointerChars = 26 + 2;
-
-#define Between(min, i, max) ((min) <= (i) && (i) <= (max))
-    int TransformTitleFPointerChar(const char *&c)
-    {
-        // while (SkipTitleChar(*c))
-        //     c++;
-        if (Between('0', *c, '9'))
-        {
-            c++;
-            return -1;
-        }
-        if (Between('A', *c, 'Z'))
-            return (*c++ - 'A');
-        if (Between('a', *c, 'z'))
-            return (*c++ - 'a');
-        if (*c != '\0')
-            c++;
-        return -2;
-    }
-#undef Between
-
-#warning TODO: Generate programmatically
     int GetSearchPointerIndex(const NonMBChar *searchstring, int pointerdepth)
     {
-        int pointerindex = 0;
-        for (int d = 0; d < pointerdepth; d++)
+        int pindex = 0;
+        for (int kindex = 0; kindex < pointerdepth; kindex++)
         {
-            int transformed = TransformTitleFPointerChar(searchstring);
-            if (transformed < 0)
+            const SearchIndex k = ReadSearchCharPtr(searchstring);
+            if (k < 0) // end of string
+                return pindex;
+            const int depth = pointerdepth - kindex - 1;
+            const int layersize = GetJumpDepth(depth);
+            for (int j = 0; j < jumpCharCount; j++)
             {
-                pointerindex += TitleFPointerOffset + transformed;
-                break;
+                if (k == j)
+                {
+                    if (IsSearchStop(k))
+                        return pindex;
+                    break;
+                }
+                pindex += IsSearchStop(j) ? 1 : layersize;
             }
-            for (int md = d + 1; md < pointerdepth; md++)
-                transformed *= TitleFPointerChars;
-            pointerindex += TitleFPointerOffset + transformed;
         }
-        return pointerindex;
+        return pindex;
     }
 }

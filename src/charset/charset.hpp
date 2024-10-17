@@ -5,8 +5,10 @@ namespace charset
 {
     typedef char MBChar;
     typedef char NonMBChar;
+    typedef int SearchIndex;
 
     NonMBChar ReadSearchChar(const MBChar *&c);
+    SearchIndex ReadSearchCharPtr(const MBChar *&c);
 
     struct CharCount
     {

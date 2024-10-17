@@ -1,4 +1,4 @@
-char ReadSearchChar(const char *&c)
+NonMBChar ReadSearchChar(const MBChar *&c)
 {
     if (*c == '\0')
         return '\0';
@@ -403,5 +403,154 @@ char ReadSearchChar(const char *&c)
             }
         default:
             return ' ';
+    }
+}
+
+SearchIndex ReadSearchCharPtr(const MBChar *&c)
+{
+    if (*c == '\0')
+        return -1;
+    switch (*c++)
+    {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            return 1;
+        case 'A':
+        case 'a':
+            return 2;
+        case 'B':
+        case 'b':
+            return 3;
+        case 'C':
+        case 'c':
+            return 4;
+        case 'D':
+        case 'd':
+            return 5;
+        case 'E':
+        case 'e':
+            return 6;
+        case 'F':
+        case 'f':
+            return 7;
+        case 'G':
+        case 'g':
+            return 8;
+        case 'H':
+        case 'h':
+            return 9;
+        case 'I':
+        case 'i':
+            return 10;
+        case 'J':
+        case 'j':
+            return 11;
+        case 'K':
+        case 'k':
+            return 12;
+        case 'L':
+        case 'l':
+            return 13;
+        case 'M':
+        case 'm':
+            return 14;
+        case 'N':
+        case 'n':
+            return 15;
+        case 'O':
+        case 'o':
+            return 16;
+        case 'P':
+        case 'p':
+            return 17;
+        case 'Q':
+        case 'q':
+            return 18;
+        case 'R':
+        case 'r':
+            return 19;
+        case 'S':
+        case 's':
+            return 20;
+        case 'T':
+        case 't':
+            return 21;
+        case 'U':
+        case 'u':
+            return 22;
+        case 'V':
+        case 'v':
+            return 23;
+        case 'W':
+        case 'w':
+            return 24;
+        case 'X':
+        case 'x':
+            return 25;
+        case 'Y':
+        case 'y':
+            return 26;
+        case 'Z':
+        case 'z':
+            return 27;
+        default:
+            return 0;
+    }
+}
+
+const int jumpCharCount = 28;
+
+int GetJumpDepth(const int depth)
+{
+    const int jump_stopcount = 2;
+    const int jump_recursecount = 26;
+
+    int rd = 1;
+    for (int i = 0; i < depth; i++)
+        rd *= jump_recursecount;
+    return jump_stopcount * (1 - rd) / (1 - jump_recursecount) + rd;
+}
+
+bool IsSearchStop(const SearchIndex i)
+{
+    switch (i)
+    {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 18:
+        case 19:
+        case 20:
+        case 21:
+        case 22:
+        case 23:
+        case 24:
+        case 25:
+        case 26:
+        case 27:
+            return false;
+        default:
+            return true;
     }
 }
