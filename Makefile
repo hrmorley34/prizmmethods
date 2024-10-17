@@ -103,10 +103,13 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
 					-L$(LIBFXCG_LIB)
 
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
-.PHONY: all clean
+.PHONY: g3a clean cleangen \
+		cleanmethodlib cleanmethods methodgen \
+		all cleanall \
+		force
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) $(GENERATED)
+g3a: $(BUILD) $(GENERATED)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 $(BUILD):
@@ -121,6 +124,34 @@ clean:
 	$(call rmdir,$(BUILD))
 	$(call rm,$(OUTPUT).bin)
 	$(call rm,$(OUTPUT).g3a)
+
+cleangen:
+	$(foreach gen,${GENERATED},$(call rm,$(gen));)
+
+#---------------------------------------------------------------------------------
+METHODS_URL	:=	https://methods.cccbr.org.uk/xml/CCCBR_methods.xml.zip
+METHODS_DIR	:=	methods
+METHODS_XML	:=	CCCBR_methods.xml.zip
+
+methodgen: $(METHODS_XML) methodconv.py prizmunicode/charmap.py prizmunicode/searchmap.py | $(METHODS_DIR)
+	py methodconv.py $(METHODS_XML)
+
+$(METHODS_DIR):
+	@mkdir $@
+
+$(METHODS_XML): force
+# -z only updates if the remote has been updated
+	curl "$(METHODS_URL)" -o $(METHODS_XML) -Rz $(METHODS_XML)
+
+cleanmethodlib:
+	$(call rm,$(METHODS_XML))
+
+cleanmethods:
+	$(call rmdir,$(METHODS_DIR))
+
+#---------------------------------------------------------------------------------
+all: g3a methodgen
+cleanall: clean cleangen cleanmethods cleanmethodlib
 
 #---------------------------------------------------------------------------------
 else
