@@ -2,7 +2,6 @@ import bisect
 import re
 import struct
 import sys
-import unicodedata
 import zipfile
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -14,7 +13,12 @@ from typing import IO, Any, Callable, Generator, Iterable
 import lxml.etree
 
 from prizmunicode.charmap import try_map_string
-from prizmunicode.searchmap import get_title_cats, try_map_searchstring
+from prizmunicode.searchmap import (
+    JUMPCHARS,
+    get_title_cats,
+    jump_layersize,
+    try_map_searchstring,
+)
 
 MAX_METHOD_TITLE_LENGTH = 128
 MAX_PLACE_NOTATION_LENGTH = 256
@@ -144,10 +148,7 @@ class MethodFile:
     def __init__(self, stage: int, pointerdepth: int) -> None:
         self.stage = stage
         self.pointerdepth = pointerdepth
-        i1, i2 = 2, 26  # TODO: Not hardcode
-        # calculate i1+i2*(...*(i1+i2))
-        pointercount = i1 * (1 - i2**pointerdepth) // (1 - i2) + i2**pointerdepth
-        self.pointers = [0] * pointercount
+        self.pointers = [0] * jump_layersize(pointerdepth)
 
     def header_dumps(self) -> bytes:
         return HEADER_STRUCT.pack(
@@ -158,7 +159,8 @@ class MethodFile:
         )
 
     def header_dump(self, f: IO[bytes]) -> int:
-        assert f.seek(0) == 0
+        if f.seek(0) != 0:
+            raise Exception
         return f.write(self.header_dumps())
 
     def after_pointers(self) -> int:
@@ -168,7 +170,8 @@ class MethodFile:
         return struct.pack(f"< {len(self.pointers)}L", *self.pointers)
 
     def pointers_dump(self, f: IO[bytes]) -> int:
-        assert f.seek(POINTERS_START) == POINTERS_START
+        if f.seek(POINTERS_START) != POINTERS_START:
+            raise Exception
         return f.write(self.pointers_dumps())
 
     def get_title_sort_checks(self) -> Generator[tuple[int, str], None, None]:
@@ -176,7 +179,8 @@ class MethodFile:
         yield (len(self.pointers), "\U0010ffff")
 
     def dump_methods(self, f: IO[bytes], sorted_methods: list[Method]) -> int:
-        assert f.seek(self.after_pointers()) == self.after_pointers()
+        if f.seek(self.after_pointers()) != self.after_pointers():
+            raise Exception
         f.truncate()
 
         title_sort_it = self.get_title_sort_checks()
@@ -500,7 +504,7 @@ if __name__ == "__main__":
 
         # aim for an average of 10 methods per bucket
         # (likely to be a lot more for some letters)
-        float_pointerdepth = log(len(methods) / 10.0, 2 + 26)  # TODO: remove hardcode
+        float_pointerdepth = log(len(methods) / 10.0, len(JUMPCHARS))
         pointerdepth = max(int(float_pointerdepth), 0)
         # pointerdepth = min(pointerdepth, 1)
         print(f"{stage}: Using depth {pointerdepth}")

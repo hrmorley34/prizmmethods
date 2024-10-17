@@ -7,10 +7,18 @@ from typing import Generator
 from .charmap import BYTE_MAP, CHAR_MAP, Alias
 
 __all__ = [
-    "SearchKeys",
+    "JumpChar",
     "JUMP_SPACE",
     "JUMP_DIGIT",
+    "JUMP_ASCII",
+    "JUMPCHARS",
+    "JUMP_STOPCOUNT",
+    "JUMP_RECURSECOUNT",
+    "jump_layersize",
+    "get_jump_index",
+    "SearchKeys",
     "try_map_searchchar",
+    "try_map_searchchar_index",
     "try_map_searchstring",
     "get_title_cats",
     "SORT_BYTE_MAP",
@@ -18,23 +26,75 @@ __all__ = [
 
 
 @dataclass(frozen=True)
+class JumpChar:
+    char: str
+    stop: bool
+
+
+JUMP_SPACE = JumpChar("", True)
+JUMP_DIGIT = JumpChar("0", True)
+JUMP_ASCII = {c: JumpChar(c, False) for c in string.ascii_uppercase}
+JUMPCHARS = [
+    JUMP_SPACE,
+    JUMP_DIGIT,
+    *(JUMP_ASCII[c] for c in string.ascii_uppercase),
+]
+
+JUMP_STOPCOUNT = sum(j.stop for j in JUMPCHARS)
+JUMP_RECURSECOUNT = len(JUMPCHARS) - JUMP_STOPCOUNT
+
+
+def jump_layersize(depth: int) -> int:
+    assert depth >= 0, f"Bad depth {depth}"
+    # e.g. for depth 3:
+    # stop + recurse * (stop + recurse * (stop + recurse.))
+    # = stop + (recurse * stop) + (recurse^2 * stop) + recurse^3
+    # = stop * (1 + recurse + recurse^2) + recurse^3
+    # = stop * (1 - recurse^(2+1))/(1 - recurse) + recurse^3, by the geometric series
+    rd = JUMP_RECURSECOUNT**depth
+    return JUMP_STOPCOUNT * (1 - rd) // (1 - JUMP_RECURSECOUNT) + rd
+
+
+def get_jump_index(jumpkey: tuple[JumpChar, ...], pointerdepth: int) -> int:
+    pindex = 0
+    for kindex, k in enumerate(jumpkey):
+        depth = pointerdepth - kindex - 1
+        if depth < 0:
+            break
+        layersize = jump_layersize(depth)
+        for jumpchar in JUMPCHARS:
+            if k == jumpchar:
+                if k.stop:
+                    return pindex
+                break
+            else:
+                # shifts following index (the one we're searching for)
+                pindex += 1 if jumpchar.stop else layersize
+    return pindex
+
+
+@dataclass(frozen=True)
 class SearchKeys:
     sortkey: str
-    jumpkey: str
-    jumpstop: bool = False
+    jumpkey: tuple[JumpChar, ...]
+
+    @property
+    def jumpstop(self) -> bool:
+        return len(self.jumpkey) > 0 and self.jumpkey[-1].stop
+
+    def __post_init__(self) -> None:
+        assert all(j in JUMPCHARS for j in self.jumpkey)
+        assert all(not j.stop for j in self.jumpkey[:-1])
 
     def __add__(self, r2: "SearchKeys") -> "SearchKeys":
         assert isinstance(r2, SearchKeys)
         return SearchKeys(
             sortkey=self.sortkey + r2.sortkey,
             jumpkey=self.jumpkey if self.jumpstop else self.jumpkey + r2.jumpkey,
-            jumpstop=self.jumpstop or r2.jumpstop,
         )
 
 
-JUMP_SPACE = ""
-JUMP_DIGIT = "0"
-SEARCH_SPACE = SearchKeys(" ", JUMP_SPACE, jumpstop=True)
+SEARCH_SPACE = SearchKeys(" ", (JUMP_SPACE,))
 
 UNICODE_CONVERSIONS = {"Ø": "O", "ø": "o"}
 
@@ -50,12 +110,12 @@ def try_map_searchchar(char: str, *, verbose: bool = True) -> SearchKeys | None:
     norm = "".join(UNICODE_CONVERSIONS.get(c, c) for c in norm)
     if char in CHAR_MAP:
         norm = norm[0]
-    sk = SearchKeys("", "")
+    sk = SearchKeys("", ())
     for index, normchar in enumerate(norm):
         if normchar in string.ascii_uppercase:
-            sk += SearchKeys(normchar, normchar)
+            sk += SearchKeys(normchar, (JUMP_ASCII[normchar],))
         elif normchar in string.digits:
-            sk += SearchKeys(normchar, JUMP_DIGIT, jumpstop=True)
+            sk += SearchKeys(normchar, (JUMP_DIGIT,))
         elif index and unicodedata.category(normchar)[0] not in "LNPSZ":
             continue
         else:
@@ -65,8 +125,15 @@ def try_map_searchchar(char: str, *, verbose: bool = True) -> SearchKeys | None:
     return sk
 
 
+def try_map_searchchar_index(char: str, *, verbose: bool = True) -> int | None:
+    sk = try_map_searchchar(char, verbose=verbose)
+    if sk is None or not sk.jumpkey:
+        return None
+    return JUMPCHARS.index(sk.jumpkey[0])
+
+
 def try_map_searchstring(s: str) -> SearchKeys | None:
-    initial = SearchKeys("", "")
+    initial = SearchKeys("", ())
     for char in s:
         r = try_map_searchchar(char)
         if r is None:
@@ -76,16 +143,15 @@ def try_map_searchstring(s: str) -> SearchKeys | None:
 
 
 def get_title_cats(depth: int) -> Generator[str, None, None]:
-    yield ""
     if depth <= 0:
+        yield ""
         return
-    yield "0"
-    if depth == 1:
-        yield from string.ascii_uppercase
-        return
-    for c in string.ascii_uppercase:
-        for suffix in get_title_cats(depth - 1):
-            yield c + suffix
+    for char in JUMPCHARS:
+        if char.stop or depth == 1:
+            yield char.char
+        else:
+            for suffix in get_title_cats(depth - 1):
+                yield char.char + suffix
 
 
 SORT_BYTE_MAP: dict[int, str | dict[int, str]] = {}
